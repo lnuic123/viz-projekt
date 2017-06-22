@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<script src="d3.v3.min.js" charset="utf-8">></script>
+		<script src="d3.geo.projection.v0.min.js"></script>
+		<script src="topojson.v1.min.js"></script>
+  		<script src="d3.slider.js"></script>
+  		<link rel="stylesheet" href="d3.slider.css" />  
+  		<script src="jquery.min.js" type="text/javascript"></script>
+  		<style type="text/css">
+  			button.link { 
+  				background:none;
+  				font-family: Lucida Sans Unicode; 
+				font-size: 30px; 
+				font-weight: bold;
+				color: #333; }
+			button.link#titlebutton1{
+				width: 190px;
+				color: blue;
+			}
+			button.link#titlebutton2{
+				width: 80px;
+			}
+			p { 
+				font-family: Lucida Sans Unicode; 
+				font-size: 30px; 
+				color: #333;
+				font-weight: bold;
+			}
+
+			button {
+				width: 4em;
+				height: 1.5em;
+				background: lightgray;
+				border: 1px solid gray;
+				border-radius: 4px;
+				color: black;
+				font-size: 1.5em;
+			}
+
+			.axis {
+			  font: 10px sans-serif;
+			}
+
+			.axis path,
+			.axis line {
+			  fill: none;
+			  stroke: #000;
+			  shape-rendering: crispEdges;
+			}
+			#play{
+				float: left;
+				width: 50px;
+				margin-left: 20px;
+				margin-top: 15px;
+				color: black;
+			}
+			#page{
+				max-width: 1460px;
+				margin-left: auto;
+				margin-right: auto ;
+				text-align: left;
+			}
+			#containder{
+				max-width: 1460px;
+				margin-left: auto;
+				margin-right: auto;
+				text-align: left;
+			}
+			#slider7{
+				max-width: 1310px;
+				margin-right: 0%;
+				margin-left: 120px;
+				text-align: left;
+				margin-top: 20px;
+			}
+  		</style>
+	</head>
+	<body style="text-align: center;">
+	<!-- Glavni div element unutar kojeg se postavljaju svi ostali dijelovi stranice-->
+	<div id="page">
+		<!-- Naslov koji sadrži dva button-a za promjenu vrste podataka -->
+		<p id="pagetitle">Europe 
+			<button class="link" id="titlebutton1">population</button>/
+			<button class="link" id="titlebutton2">GDP</button> change from 2000 to 2015
+		</p>
+		<!-- div koji će sardžavati barchart -->
+		<div id="container">
+			<div id="charts" style="float: right;"">
+				<div id="barchart"></div>
+			</div>
+		</div>
+		<!-- Play button i slider elementi -->
+		<button name="play" id="play">&#9654;</button>
+		<div id="slider7"></div>
+	</div>
+		<script type="text/javascript">
+			//Definiranje visine, duzine i varijabli za legendu karte
+			var w = 800;
+			var h = 600;
+			var formatComma = d3.format(",");
+			var ext_color_domain = [-5, -2.5, 0, 2.5, 5];
+			var char160 = String.fromCharCode(160);
+			var legend_labels = ["-5 %", "-2.5 %", char160 + char160 + "0 %", char160 + char160 + "2.5 %", char160 + char160 + "5 %"];
+			var legend_labels_gdp = ["-15 %", "-7.5 %", char160 + char160 + "0 %", char160 + char160 + "7.5 %", char160 + char160 + "15 %"];
+			//Zastavice za Play button
+			var playflag = false;
+			var firstclick = false;
+			//Mapa dodana sa linka https://bl.ocks.org/MariellaCC/0055298b94fcf2c16940
+			//Definiranje projekcije mape
+			var projection = d3.geo.mercator() 
+				.center([ -5, 50 ]) 
+				.translate([ w/3, h/1.6 ]) 
+				.scale([ w/1.2 ]); 
+
+			var path = d3.geo.path()
+				.projection(projection);
+			//Stvaranje SVG-a za mapu
+			var svg = d3.select("#container")
+				.append("svg")
+				.attr("width", w)
+				.attr("height", h);
+			//Postavljanje dometa boja
+			var color = d3.scale.linear().domain([-2,0,2])
+				.interpolate(d3.interpolateHcl)
+			    .range(["black", "white", "darkgreen"]);
+			//Definiranje tooltipa za mapu
+			var tooltip = d3.select("body")
+				.append("div")
+				.attr("id","tooltip")
+				.style("position", "absolute")
+				.style("z-index", "100")
+				.style("visibility", "hidden")
+				.html("test");
+			//Ucitavanje GeoJSON podataka
+			d3.json("europe.json", function(json) {
+				//Definiranje svake države na karti
+				svg.selectAll("path")
+					.data(json.features)
+					.enter()
+					.append("path")
+					.attr("d", path)
+					.attr("stroke", "blue")
+					.style("fill", function(d){return color(d.properties.popchange[0]);})
+					//Pozivanje funkcije za promjenu sadržaja grafa na click
+					.on("click", function(d) {
+						graphupdate(d.properties);
+					})
+					//Mijenjanje boje države na mouseover kao i prikaz tooltipa
+					.on("mouseover", function(d) {
+						d3.select(this)
+						.transition()
+						.duration(100)
+						.style("fill", function(d)
+							{
+								var val;
+								if(document.getElementById("titlebutton1").style.color == "black"){
+									val = d.properties.gdpchange[value - 2000];
+								}
+								else{
+									val = d.properties.popchange[value - 2000];
+								}
+								return val >= 0 ? color(val + 1.5): color(val - 1.5); 
+							})
+						d3.select("#tooltip")
+							.html(tooltiptext(d));
+						return tooltip.style("visibility", "visible");
+					})
+					//Mijenjanje pozicije tooltipa u ovisnosti o poziciji miša
+					.on("mousemove", function(){return tooltip.style("top", (event.pageY-10)+"px").style("left",(event.pageX+10)+"px");})
+					//Vraćanje boje zemlje na početnu i uklananje tooltipa na mouseout
+					.on("mouseout", function(d) {
+						d3.select(this)
+						.transition()
+						.duration(100)
+						.style("fill", function(d)
+							{
+								if(document.getElementById("titlebutton1").style.color == "black"){
+									color = d3.scale.linear().domain([-12,0,12])
+										.interpolate(d3.interpolateHcl)
+									    .range(["black", "white", "darkgreen"]);
+				            		return color(d.properties.gdpchange[value - 2000]);
+								}
+								else{
+									color = d3.scale.linear().domain([-2,0,2])
+										.interpolate(d3.interpolateHcl)
+									    .range(["black", "white", "darkgreen"]);
+				            		return color(d.properties.popchange[value - 2000]);
+								}
+							})
+						return tooltip.style("visibility", "hidden");
+					});
+			});
+			//Slider dodan pomoću https://github.com/MasterMaps/d3-slider
+			//Definiranje slidera i njegovih razina
+    		d3.select('#slider7').call(d3.slider().axis(true).min(2000).max(2015).step(1));
+
+    		//Legenda dodana pomoću http://bl.ocks.org/ZJONSSON/3918369
+    		//Definiranje legende mape
+			var legend = svg.selectAll("g.legend")
+				.data(ext_color_domain)
+				.enter().append("g")
+				.attr("class", "legend");
+
+			//Visina i duljina kvadrata legende
+			var ls_w = 20, ls_h = 20;
+
+			//Postavljanje kvadrate razina unutar mape
+			legend.append("rect")
+				.attr("x", 20)
+				.attr("y", function(d, i){ return h - (i*ls_h) - 2*ls_h - 50;})
+				.attr("width", ls_w)
+				.attr("height", ls_h)
+				.style("fill", function(d, i) { return color(d*0.6); })
+				.style("opacity", 0.8);
+
+			//Vrijednost svakog kvadrata legende
+			legend.append("text")
+				.attr("x", 50)
+				.attr("y", function(d, i){ return h - (i*ls_h) - ls_h - 54;})
+				.style("font-family", "Lucida Sans Unicode, Lucida Grande, sans-serif")
+				.text(function(d, i){ return legend_labels[i]; });
+
+			//Postavljanje opisa legende
+			svg.append("text")
+				.attr("x", 20)
+				.attr("y", 420)
+				.attr("id","legendtext")
+				.style("font-size", "16px")
+				.style("font-family", "Lucida Sans Unicode, Lucida Grande, sans-serif")			
+				.text("% of pop. change");
+
+			//Definiranje Texta za prikaz godine na mapi
+			svg.append("text")
+				.attr("x", 20)
+				.attr("y", 570)
+				.attr("id","year")
+				.style("font-size", "34px")
+				.style("font-family", "Lucida Sans Unicode, Lucida Grande, sans-serif")			
+				.text("Year: " + value);
+			//jQuery funkcija za play button
+			$("#play").on("click", function() {
+				//postavljanje godine na početnu vrijednost i pomicanje slidera
+				year = 2000;
+				moveHandle(year);
+				value = year;
+				intervalId = setInterval(varName, 1000);
+				playflag = true;
+			});
+
+    		var intervalId = null;
+    		var year = 2000;
+    		//Definiranje funkcije za pomicanje slidera za godinu
+			var varName = function(){
+			    if(year <= 2014) {
+			   		year++;
+	   		 		moveHandle(year);//Izmjena vrijednosti mape i barcharta odvija se u moveHandle funkciji unutar d3.slider.js skripti
+		   		 	value = year;
+			    }
+				else {
+					//Poništavanje intervala kada je godina veća od 15
+			        clearInterval(intervalId);
+			    }
+			};
+			//Barchart napravljen pomoću priručnika iz LV-a
+			//Definiranje varijabli barchart-a
+			var data = [862268932, 863576156, 865158684, 867424499, 870003667, 872640215, 875318531, 878429450, 881925890, 885580453, 889078106, 891293624, 895050782, 899381985, 903670530, 907791157];
+			var margin = {top: 10, bottom: 30, left:10, right: 50};
+			var width = 650 - margin.left - margin.right;
+			var height = 560 - margin.top - margin.bottom;
+			var barPadding = 4;
+			var barWidth = width / data.length - barPadding;
+			//Skala x osi
+			var x = d3.scale.ordinal()
+				.domain(d3.range(data.length))
+				.rangeRoundBands([0, width]);
+			//Skala y osi
+			var y = d3.scale.linear()
+				.domain([d3.min(data) - 1000000, d3.max(data)])
+				.range([height, 0]);
+			//Postavljanje svg-a barchart-a
+			var svg1 = d3.select("#barchart")
+				.append("svg")
+				.attr("width", width + margin.left + margin.right)
+				.attr("height", height + margin.bottom + margin.top + 50)
+				.append("g")
+				.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+			//Definiranje x osi barchart-a
+			var xAxis = d3.svg.axis()
+				.scale(x)
+				.orient("bottom")
+				.tickFormat(function(i){ if (i % 3 == 0) return 2000 + i; });
+			//Definiranje y osi barchart-a
+			var yAxis = d3.svg.axis()
+				.scale(y)
+				.orient("right")
+				.tickFormat(function(d) 
+					{ if(d/1000000 < 1){
+						return d/1000 + "k";
+					}
+					else{
+						return d/1000000 + "M";
+					}
+				})
+				.ticks(5);
+			//Dodavanje teksta za opis vrijednosti x osi
+			svg1.append("g")
+				.attr("class", "x axis")
+				.attr("transform", "translate(0," + height + ")")
+				.style("font-size", "12px")
+				.attr("stroke-width","1.5px")
+				.call(xAxis)
+				.selectAll("text")
+				.style("text-anchor", "middle");
+			//Dodavanje naslova barcharta
+			svg1.append("text")
+				.attr("y", height * 1.1)
+				.attr("x", width/2.9)
+				.attr("id","barcharttext")
+				.style("font-size", "25px")
+				.style("font-family", "Lucida Sans Unicode, Lucida Grande, sans-serif")	
+				.text("Country population");
+			//Dodavanje teksta za opis vrijednosti y osi
+			svg1.append("g")
+				.attr("id", "yaxis")
+				.attr("class", "y axis")
+				.attr("transform", "translate(" + width + ",0)")
+				.style("font-size", "12px")
+				.attr("stroke-width","1.5px")
+				.call(yAxis);
+			//Postavljanje natpisa za trenutnu državu
+			svg1.append("g")
+				.append("text")
+				.attr("x", 0)
+				.attr("y", 20)
+				.attr("id","graphtitle")
+				.style("font-size", "20px")
+				.style("font-family", "Lucida Sans Unicode, Lucida Grande, sans-serif")	
+				.text("Europe")
+				//Na click podatci se vraćaju na podatke o Europi 
+				.on("click", function() {
+						if(document.getElementById("titlebutton1").style.color == "black"){
+							graphupdate({gdpperc:[827693,835541,915534,1113453,1285974,1367260,1479252,1756736,1915977,1616915,1639330,1811929,1570862,1661114,1597517,1121205,],Country_Name:"Europe"});
+						}
+						else{
+							graphupdate({poptotal:[862268932, 863576156, 865158684, 867424499, 870003667, 872640215, 875318531, 878429450, 881925890, 885580453, 889078106, 891293624, 895050782, 899381985, 903670530, 907791157],Country_Name:"Europe"});
+						}
+					});
+			//Postavljanje vrijednosti kvadrata na barchart-u
+			var barchart = svg1.selectAll("rect")
+				.data(data)
+				.enter()
+				.append("rect")
+				.attr("id","barchart")
+				.attr("x", function(d, i) { return x(i); })
+				.attr("y", y) 
+				.attr("height", function(d) { return height - y(d); })
+				.attr("width", barWidth)
+				.attr("fill", "#0a0")
+				.attr("fill-opacity", "0.4")
+				.attr("stroke","#000")
+				.attr("stroke-width","1px")
+				//Označavanje trenutne godine sa podebljanim obrubom kvadrata
+				.attr("stroke-opacity",function(d,i){
+					return i == (value - 2000) ? "1" : "0";
+				})
+				//Promjena boje kvadrata i prikaz tooltipa na mouseover
+				.on("mouseover", function(d,i) {
+					d3.select(this)
+					.transition()
+					.duration(100)
+					.style("fill", "gray")
+					d3.select("#tooltipgraph")
+						.html(tooltiptextgraph(d));
+					return tooltipgraph.style("visibility", "visible");
+				})
+				//Promjena pozicije tooltipa na mousemove
+				.on("mousemove", function(){return tooltipgraph.style("top", (event.pageY-10)+"px").style("left",(event.pageX+10)+"px");})
+				//Ukladanje tooltipa i vraćanje na počentu boju na mouseout
+				.on("mouseout", function(d) {
+					d3.select(this)
+					.transition()
+					.duration(100)
+					.style("fill", "#0a0")
+					return tooltipgraph.style("visibility", "hidden");
+				});
+			//Dodavanje tooltipa za barchart
+			var tooltipgraph = d3.select("body")
+				.append("div")
+				.attr("id","tooltipgraph")
+				.style("position", "absolute")
+				.style("z-index", "100")
+				.style("visibility", "hidden")
+				.html("test");
+			//Funkcija koja vraća tekst tooltipa
+			function tooltiptextgraph(d){
+				return "<svg width=\"100\" height=\"30\"><rect x=\"0\" y=\"0\" width=\"100\" height=\"30\" stroke=\"black\" stroke-width=\"1px\" fill=\"white\" fill-opacity=\"1\"></rect>"
+				+ "<text x=\"10\" y=\"20\" style=\"fill:black;\">" + formatComma(d.toFixed(0)) +"</text></svg>";
+			}
+			//Funkcija za azuriranje vrijednosti barcharta
+			function graphupdate(d){
+				svg1.selectAll("rect").remove();
+				d3.select("#yaxis").remove();
+				//Odabir podataka BDPa ili populacije
+				if(document.getElementById("titlebutton1").style.color == "black"){
+					data = d.gdpperc;
+				}
+				else{
+					data = d.poptotal;					
+				}
+				//Ponovno skaliranje barchart-a
+				y = d3.scale.linear()
+					.domain([d3.min(data) - d3.min(data)/1000, d3.max(data)])
+					.range([height, 0]);
+				//Promjena vrijednosti y-osi barchart-a
+				yAxis = d3.svg.axis()
+					.scale(y)
+					.orient("right")
+					.tickFormat(function(d) { if(d/1000000 < 1){
+						return d/1000 + "k";
+					}
+					else{
+						return d/1000000 + "M";
+					}})
+					.ticks(5);
+				//Postavljanje y-os na barchart
+				svg1.append("g")
+					.attr("id", "yaxis")
+					.attr("class", "y axis")
+					.attr("transform", "translate(" + width + ",0)")
+					.style("font-size", "12px")
+					.attr("stroke-width","1.5px")
+					.call(yAxis);
+				//Promjena naziva trenutne države
+				svg1.select("#graphtitle")
+					.text(function(){
+						return d.Country_Name == "Europe" ? "Europe" : "Europe > " + d.Country_Name;
+					});
+				//Postavljanje vrijednosti kvadrata na barchart-u
+				var barchart = svg1.selectAll("rect")
+					.data(data)
+					.enter()
+					.append("rect")
+					.attr("x", function(d, i) { return x(i); })
+					.attr("y", y) 
+					.attr("height", function(d) { return height - y(d); })
+					.attr("width", barWidth)
+					.attr("fill", "#0a0")
+					.attr("fill-opacity", "0.4")
+					.attr("stroke","#000")
+					.attr("stroke-width","1px")
+					//Označavanje trenutne godine sa podebljanim obrubom kvadrata
+					.attr("stroke-opacity",function(d,i){
+						return i == (value - 2000) ? "1" : "0";
+					})
+					//Promjena boje kvadrata i prikaz tooltipa na mouseover
+					.on("mouseover", function(d,i) {
+						d3.select(this)
+						.transition()
+						.duration(100)
+						.style("fill", "gray")
+						d3.select("#tooltipgraph")
+							.html(tooltiptextgraph(d));
+						return tooltipgraph.style("visibility", "visible");
+					})
+					//Promjena pozicije tooltipa na mousemove
+					.on("mousemove", function(){return tooltipgraph.style("top", (event.pageY-10)+"px").style("left",(event.pageX+10)+"px");})
+					//Ukladanje tooltipa i vraćanje na počentu boju na mouseout
+					.on("mouseout", function(d) {
+						d3.select(this)
+						.transition()
+						.duration(100)
+						.style("fill", "#0a0")
+						return tooltipgraph.style("visibility", "hidden");
+					});
+			}
+
+			//button GDP/population change
+			$("#titlebutton1").on("click", function() {
+				this.style.color = "blue";
+				document.getElementById("titlebutton2").style.color = "black";
+				mapbuttonchange();
+			});
+			$("#titlebutton2").on("click", function() {
+				this.style.color = "blue";
+				document.getElementById("titlebutton1").style.color = "black";
+				mapbuttonchange();
+				
+			});
+			//Funkcija za promjenu skupa podataka iz populacija u BDP i obrunuto
+			function mapbuttonchange(){
+				//Promjena izgleda buttona i vrijednosti prikazanih na barchartu
+				if(document.getElementById("titlebutton1").style.color == "black"){
+					svg1.select("#barcharttext").text("Country GDP per capita");
+					graphupdate({gdpperc:[827693,835541,915534,1113453,1285974,1367260,1479252,1756736,1915977,1616915,1639330,1811929,1570862,1661114,1597517,1121205,],Country_Name:"Europe"});
+				}
+				else{
+					svg1.select("#barcharttext").text("Country population");
+					graphupdate({poptotal:[862268932, 863576156, 865158684, 867424499, 870003667, 872640215, 875318531, 878429450, 881925890, 885580453, 889078106, 891293624, 895050782, 899381985, 903670530, 907791157],Country_Name:"Europe"});
+				}
+				//Promjena vrijednosti na mapi
+				d3.json("europe.json", function(json) {
+			        svg.selectAll("path")
+						.data(json.features)
+						.transition()
+						.duration(200)
+						//Postavljanje vrijednosti boje svake države
+						.style("fill", function(d){
+							if(document.getElementById("titlebutton1").style.color == "black"){
+								//Promjena teksta i vrijednosti legendi
+								svg.select("#legendtext").text("% of GDP change");
+								legend.select("text")
+									.text(function(d, i){ return legend_labels_gdp[i]; });
+								color = d3.scale.linear().domain([-12,0,12])
+									.interpolate(d3.interpolateHcl)
+								    .range(["black", "white", "darkgreen"]);
+			            		return color(d.properties.gdpchange[value - 2000]);
+							}
+							else{
+								//Promjena teksta i vrijednosti legendi
+								svg.select("#legendtext").text("% of pop. change");
+								legend.select("text")
+									.text(function(d, i){ return legend_labels[i]; });
+								color = d3.scale.linear().domain([-2,0,2])
+									.interpolate(d3.interpolateHcl)
+								    .range(["black", "white", "darkgreen"]);
+			            		return color(d.properties.popchange[value - 2000]);
+							}
+			        });
+ 				});
+			}
+
+			//Funkcija koja vraća cjelokupni tekst tooltipa mape
+			function tooltiptext(d){
+				return "<svg width=\"270\" height=\"160\"><rect x=\"0\" y=\"0\" width=\"270\" height=\"160\" stroke=\"black\" stroke-width=\"1px\" fill=\"white\" fill-opacity=\"1\"></rect>"
+				+ "<text x=\"10\" y=\"20\" style=\"fill:black;\">" + d.properties.Country_Name 
+				+ "<tspan x=\"10\" y=\"45\">Capital: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" +  d.properties.basicinfo[0] + "</tspan>"  
+				+ "<tspan x=\"10\" y=\"70\">Population: &nbsp;&nbsp;" + formatComma(d.properties.poptotal[value - 2000]) + " (" + value + ")</tspan>"  
+				+ "<tspan x=\"10\" y=\"95\">Pop. density: " + d.properties.basicinfo[1] + "/km<tspan baseline-shift = \"super\">2</tspan></tspan>"
+				+ "<tspan x=\"10\" y=\"120\">Area: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" + formatComma(d.properties.basicinfo[2]) + " km<tspan baseline-shift = \"super\">2</tspan></tspan>"
+				+ "<tspan x=\"10\" y=\"145\">Currency: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" +  d.properties.basicinfo[3] + "</tspan></text></svg>";
+			}
+		</script>
+		<div id="slider"></div>
+	</body>
+</html>
